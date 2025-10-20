@@ -1,0 +1,77 @@
+﻿// Copyright (c) Microsoft. All rights reserved.
+
+using System;
+using System.Collections.Generic;
+using System.Text.Json;
+using Microsoft.Agents.AI.Hosting.OpenAI.Responses.Common.Id;
+using Microsoft.Agents.AI.Hosting.OpenAI.Responses.Invocation;
+using Microsoft.Agents.AI.Hosting.OpenAI.Responses.Models;
+using Microsoft.Extensions.AI;
+
+namespace Microsoft.Agents.AI.Hosting.OpenAI.Responses.Converters;
+
+/// <summary>
+/// A generator for streaming events from function call content.
+/// </summary>
+internal sealed class FunctionCallEventGenerator(
+        IIdGenerator idGenerator,
+        ISequenceNumber seq,
+        int outputIndex,
+        JsonSerializerOptions jsonSerializerOptions) : StreamingEventGenerator
+{
+    private bool _isCompleted;
+
+    public override bool IsSupported(AIContent content) => content is FunctionCallContent;
+
+    public override IEnumerable<StreamingResponseEvent> ProcessContent(AIContent content)
+    {
+        if (this._isCompleted)
+        {
+            throw new InvalidOperationException("Cannot process content after the generator has been completed.");
+        }
+
+        if (content is not FunctionCallContent functionCallContent)
+        {
+            throw new InvalidOperationException("FunctionCallEventGenerator only supports FunctionCallContent.");
+        }
+
+        var item = functionCallContent.ToFunctionToolCallItemResource(idGenerator.GenerateFunctionCallId(), jsonSerializerOptions);
+        yield return new StreamingOutputItemAdded
+        {
+            SequenceNumber = seq.GetNext(),
+            OutputIndex = outputIndex,
+            Item = item
+        };
+
+        yield return new StreamingFunctionCallArgumentsDelta
+        {
+            SequenceNumber = seq.GetNext(),
+            ItemId = item.Id,
+            OutputIndex = outputIndex,
+            Delta = item.Arguments
+        };
+
+        yield return new StreamingFunctionCallArgumentsDone
+        {
+            SequenceNumber = seq.GetNext(),
+            ItemId = item.Id,
+            OutputIndex = outputIndex,
+            Arguments = item.Arguments
+        };
+
+        yield return new StreamingOutputItemDone
+        {
+            SequenceNumber = seq.GetNext(),
+            OutputIndex = outputIndex,
+            Item = item
+        };
+
+        this._isCompleted = true;
+    }
+
+    public override IEnumerable<StreamingResponseEvent> Complete()
+    {
+        this._isCompleted = true;
+        return [];
+    }
+}
