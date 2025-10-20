@@ -17,10 +17,10 @@ internal sealed partial class DefaultIdGenerator : IIdGenerator
     private readonly string _partitionId;
 
 #if NET9_0_OR_GREATER
-    [GeneratedRegex("^[A-Za-z0-9]*$")]
+    [GeneratedRegex("^[A-Za-z0-9]+$")]
     private static partial Regex WatermarkRegex();
 #else
-    private static readonly Regex s_watermarkRegex = new("^[A-Za-z0-9]*$", RegexOptions.Compiled);
+    private static readonly Regex s_watermarkRegex = new("^[A-Za-z0-9]+$", RegexOptions.Compiled);
     private static Regex WatermarkRegex() => s_watermarkRegex;
 #endif
 
@@ -81,9 +81,10 @@ internal sealed partial class DefaultIdGenerator : IIdGenerator
     private static string NewId(string prefix, int stringLength = 32, int partitionKeyLength = 16, string infix = "",
         string watermark = "", string delimiter = "_", string? partitionKey = null, string partitionKeyHint = "")
     {
-        var entropy = SecureEntropy(stringLength);
+        ArgumentOutOfRangeException.ThrowIfLessThan(stringLength, 1);
+        var entropy = GetRandomString(stringLength);
         var pKey = partitionKey ?? (string.IsNullOrEmpty(partitionKeyHint)
-            ? SecureEntropy(partitionKeyLength)
+            ? GetRandomString(partitionKeyLength)
             : ExtractPartitionId(partitionKeyHint));
 
         if (!string.IsNullOrEmpty(watermark))
@@ -108,19 +109,8 @@ internal sealed partial class DefaultIdGenerator : IIdGenerator
     /// <param name="stringLength">The desired length of the random string.</param>
     /// <returns>A random alphanumeric string.</returns>
     /// <exception cref="ArgumentException">Thrown when stringLength is less than 1.</exception>
-    private static string SecureEntropy(int stringLength)
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThan(stringLength, 1);
-        var entropy = "";
-        while (entropy.Length != stringLength)
-        {
-            var buffer = RandomNumberGenerator.GetBytes(stringLength);
-            var entropyBase64 = Convert.ToBase64String(buffer);
-            entropy = new string(entropyBase64.Where(char.IsLetterOrDigit).ToArray())[..stringLength];
-        }
-
-        return entropy;
-    }
+    private static string GetRandomString(int stringLength) =>
+        RandomNumberGenerator.GetString("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", stringLength);
 
     /// <summary>
     /// Extracts the partition key from an existing ID.

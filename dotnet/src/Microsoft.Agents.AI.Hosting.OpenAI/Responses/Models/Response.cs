@@ -251,6 +251,15 @@ internal sealed record IncompleteDetails
 /// </summary>
 internal sealed record ResponseUsage
 {
+    public static ResponseUsage Zero { get; } = new()
+    {
+        InputTokens = 0,
+        InputTokensDetails = new InputTokensDetails { CachedTokens = 0 },
+        OutputTokens = 0,
+        OutputTokensDetails = new OutputTokensDetails { ReasoningTokens = 0 },
+        TotalTokens = 0
+    };
+
     /// <summary>
     /// Number of tokens in the input.
     /// </summary>
