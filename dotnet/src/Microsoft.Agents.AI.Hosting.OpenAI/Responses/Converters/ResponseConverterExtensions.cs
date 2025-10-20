@@ -252,14 +252,7 @@ internal static class ResponseConverterExtensions
     {
         if (usage == null)
         {
-            return new ResponseUsage
-            {
-                InputTokens = 0,
-                InputTokensDetails = new InputTokensDetails { CachedTokens = 0 },
-                OutputTokens = 0,
-                OutputTokensDetails = new OutputTokensDetails { ReasoningTokens = 0 },
-                TotalTokens = 0
-            };
+            return ResponseUsage.Zero;
         }
 
         var cachedTokens = usage.AdditionalCounts?.TryGetValue("InputTokenDetails.CachedTokenCount", out var cachedInputToken) ?? false

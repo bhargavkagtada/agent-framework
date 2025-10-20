@@ -289,6 +289,28 @@ internal sealed record ResponseUsage
     /// </summary>
     [JsonPropertyName("total_tokens")]
     public required int TotalTokens { get; init; }
+
+    /// <summary>
+    /// Adds two <see cref="ResponseUsage"/> instances together.
+    /// </summary>
+    /// <param name="left">The first usage instance.</param>
+    /// <param name="right">The second usage instance.</param>
+    /// <returns>A new <see cref="ResponseUsage"/> instance with the combined values.</returns>
+    public static ResponseUsage operator +(ResponseUsage left, ResponseUsage right) =>
+        new()
+        {
+            InputTokens = left.InputTokens + right.InputTokens,
+            InputTokensDetails = new InputTokensDetails
+            {
+                CachedTokens = left.InputTokensDetails.CachedTokens + right.InputTokensDetails.CachedTokens
+            },
+            OutputTokens = left.OutputTokens + right.OutputTokens,
+            OutputTokensDetails = new OutputTokensDetails
+            {
+                ReasoningTokens = left.OutputTokensDetails.ReasoningTokens + right.OutputTokensDetails.ReasoningTokens
+            },
+            TotalTokens = left.TotalTokens + right.TotalTokens
+        };
 }
 
 /// <summary>

@@ -73,7 +73,7 @@ internal static class AgentRunResponseUpdateExtensions
                 // Usage content is handled separately.
                 if (content is UsageContent usageContent && usageContent.Details != null)
                 {
-                    latestUsage = Aggregate(usageContent.Details.ToResponseUsage(), latestUsage);
+                    latestUsage += usageContent.Details.ToResponseUsage();
                     continue;
                 }
 
@@ -166,20 +166,4 @@ internal static class AgentRunResponseUpdateExtensions
         static bool NotNullOrEqual(ChatRole? r1, ChatRole? r2) =>
             r1.HasValue && r2.HasValue && r1.Value != r2.Value;
     }
-
-    private static ResponseUsage Aggregate(ResponseUsage usage, ResponseUsage other) =>
-        new()
-        {
-            InputTokens = usage.InputTokens + other.InputTokens,
-            InputTokensDetails = new InputTokensDetails
-            {
-                CachedTokens = usage.InputTokensDetails.CachedTokens + other.InputTokensDetails.CachedTokens
-            },
-            OutputTokens = usage.OutputTokens + other.OutputTokens,
-            OutputTokensDetails = new OutputTokensDetails
-            {
-                ReasoningTokens = usage.OutputTokensDetails.ReasoningTokens + other.OutputTokensDetails.ReasoningTokens
-            },
-            TotalTokens = usage.TotalTokens + other.TotalTokens
-        };
 }
