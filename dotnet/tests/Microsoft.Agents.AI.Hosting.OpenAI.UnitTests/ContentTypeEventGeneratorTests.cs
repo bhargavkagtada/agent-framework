@@ -335,7 +335,7 @@ public sealed class ContentTypeEventGeneratorTests : ConformanceTestBase
     {
         // Arrange
         const string AgentName = "audio-mp3-agent";
-        const string AudioDataUri = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADhAC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7v/////////////////////////////////////////////////////////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAA4SHJYRbAAAAAAD/+xDEAANAAAGkAAAAIAAANIAAAAQAAAaQAAAAgAAA0gAAABExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/7EMQpg8AAAaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV";
+        const string AudioDataUri = "data:audio/mpeg;base64,/+MYxAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAADhAC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7v/////////////////////////////////////////////////////////////////";
         HttpClient client = await this.CreateAudioContentAgentAsync(AgentName, AudioDataUri, "audio/mpeg");
 
         // Act
@@ -619,8 +619,18 @@ public sealed class ContentTypeEventGeneratorTests : ConformanceTestBase
 
     private async Task<HttpClient> CreateFileContentAgentAsync(string agentName, string fileDataUri, string? filename)
     {
+        // Extract media type from data URI
+        string mediaType = "application/pdf"; // default
+        if (fileDataUri.StartsWith("data:", StringComparison.Ordinal))
+        {
+            int semicolonIndex = fileDataUri.IndexOf(';');
+            if (semicolonIndex > 5)
+            {
+                mediaType = fileDataUri.Substring(5, semicolonIndex - 5);
+            }
+        }
         return await this.CreateTestServerAsync(agentName, "You are a test agent.", string.Empty, (msg) =>
-            [new DataContent(fileDataUri, "application/pdf") { Name = filename }]);
+            [new DataContent(fileDataUri, mediaType) { Name = filename }]);
     }
 
     private async Task<HttpClient> CreateMixedContentAgentAsync(string agentName)
