@@ -155,4 +155,10 @@ internal sealed record CreateResponse
     /// </summary>
     [JsonPropertyName("tool_choice")]
     public JsonElement? ToolChoice { get; init; }
+
+    /// <summary>
+    /// Configuration options for a text response from the model. Can be plain text or structured JSON data.
+    /// </summary>
+    [JsonPropertyName("text")]
+    public JsonElement? Text { get; init; }
 }

@@ -775,6 +775,570 @@ public sealed class OpenAIResponsesConformanceTests : ConformanceTestBase
         Assert.Equal(JsonValueKind.Null, response.GetProperty("previous_response_id").ValueKind);
     }
 
+    [Fact]
+    public async Task ReasoningRequestResponseAsync()
+    {
+        // Arrange
+        string requestJson = LoadTraceFile("reasoning/request.json");
+        using var expectedResponseDoc = LoadTraceDocument("reasoning/response.json");
+        var expectedResponse = expectedResponseDoc.RootElement;
+
+        // Get expected text from the message output
+        string expectedText = expectedResponse.GetProperty("output")[1]
+            .GetProperty("content")[0]
+            .GetProperty("text").GetString()!;
+
+        HttpClient client = await this.CreateTestServerAsync("reasoning-agent", "You are a helpful assistant.", expectedText);
+
+        // Act
+        HttpResponseMessage httpResponse = await this.SendRequestAsync(client, "reasoning-agent", requestJson);
+        using var responseDoc = await ParseResponseAsync(httpResponse);
+        var response = responseDoc.RootElement;
+
+        // Parse the request
+        using var requestDoc = JsonDocument.Parse(requestJson);
+        var request = requestDoc.RootElement;
+
+        // Assert - Request has reasoning configuration
+        AssertJsonPropertyExists(request, "reasoning");
+        var requestReasoning = request.GetProperty("reasoning");
+        Assert.Equal(JsonValueKind.Object, requestReasoning.ValueKind);
+        AssertJsonPropertyExists(requestReasoning, "effort");
+        var effort = requestReasoning.GetProperty("effort").GetString();
+        Assert.Equal("medium", effort);
+
+        // Assert - Response preserves reasoning configuration
+        AssertJsonPropertyExists(response, "reasoning");
+        var responseReasoning = response.GetProperty("reasoning");
+        AssertJsonPropertyExists(responseReasoning, "effort");
+        Assert.Equal("medium", responseReasoning.GetProperty("effort").GetString());
+
+        // Assert - Response has reasoning output item
+        AssertJsonPropertyExists(response, "output");
+        var output = response.GetProperty("output");
+        Assert.Equal(JsonValueKind.Array, output.ValueKind);
+        Assert.True(output.GetArrayLength() >= 2, "Output should have reasoning item and message");
+
+        // Assert - First output item is reasoning type
+        var reasoningItem = output[0];
+        AssertJsonPropertyEquals(reasoningItem, "type", "reasoning");
+        AssertJsonPropertyExists(reasoningItem, "id");
+        var reasoningId = reasoningItem.GetProperty("id").GetString();
+        Assert.NotNull(reasoningId);
+        Assert.StartsWith("rs_", reasoningId);
+
+        // Assert - Second output item is message
+        var messageItem = output[1];
+        AssertJsonPropertyEquals(messageItem, "type", "message");
+        AssertJsonPropertyEquals(messageItem, "status", "completed");
+        AssertJsonPropertyEquals(messageItem, "role", "assistant");
+
+        // Assert - Message content matches expected
+        var content = messageItem.GetProperty("content");
+        var textContent = content[0];
+        AssertJsonPropertyEquals(textContent, "type", "output_text");
+        var text = textContent.GetProperty("text").GetString();
+        Assert.NotNull(text);
+        Assert.Equal(expectedText, text);
+
+        // Assert - Usage includes reasoning tokens
+        AssertJsonPropertyExists(response, "usage");
+        var usage = response.GetProperty("usage");
+        var outputDetails = usage.GetProperty("output_tokens_details");
+        AssertJsonPropertyExists(outputDetails, "reasoning_tokens");
+        var reasoningTokens = outputDetails.GetProperty("reasoning_tokens").GetInt32();
+        Assert.True(reasoningTokens > 0, "reasoning_tokens should be positive for reasoning models");
+
+        // Assert - Response status is completed
+        AssertJsonPropertyEquals(response, "status", "completed");
+
+        // Assert - Standard response fields
+        AssertJsonPropertyExists(response, "id");
+        AssertJsonPropertyEquals(response, "object", "response");
+        AssertJsonPropertyExists(response, "created_at");
+        AssertJsonPropertyExists(response, "model");
+    }
+
+    [Fact]
+    public async Task JsonOutputRequestResponseAsync()
+    {
+        // Arrange
+        string requestJson = LoadTraceFile("json_output/request.json");
+        using var expectedResponseDoc = LoadTraceDocument("json_output/response.json");
+        var expectedResponse = expectedResponseDoc.RootElement;
+
+        // Get expected JSON text from response
+        string expectedText = expectedResponse.GetProperty("output")[0]
+            .GetProperty("content")[0]
+            .GetProperty("text").GetString()!;
+
+        HttpClient client = await this.CreateTestServerAsync("json-agent", "You are a helpful assistant.", expectedText);
+
+        // Act
+        HttpResponseMessage httpResponse = await this.SendRequestAsync(client, "json-agent", requestJson);
+        using var responseDoc = await ParseResponseAsync(httpResponse);
+        var response = responseDoc.RootElement;
+
+        // Parse the request
+        using var requestDoc = JsonDocument.Parse(requestJson);
+        var request = requestDoc.RootElement;
+
+        // Assert - Request has text format with json_schema
+        AssertJsonPropertyExists(request, "text");
+        var requestText = request.GetProperty("text");
+        AssertJsonPropertyExists(requestText, "format");
+        var format = requestText.GetProperty("format");
+        AssertJsonPropertyEquals(format, "type", "json_schema");
+        AssertJsonPropertyEquals(format, "name", "person");
+        AssertJsonPropertyEquals(format, "strict", true);
+
+        // Assert - Schema has correct structure
+        AssertJsonPropertyExists(format, "schema");
+        var schema = format.GetProperty("schema");
+        AssertJsonPropertyEquals(schema, "type", "object");
+        AssertJsonPropertyExists(schema, "properties");
+        AssertJsonPropertyExists(schema, "required");
+        var properties = schema.GetProperty("properties");
+        AssertJsonPropertyExists(properties, "name");
+        AssertJsonPropertyExists(properties, "age");
+        AssertJsonPropertyExists(properties, "occupation");
+
+        // Assert - Response preserves text format configuration
+        AssertJsonPropertyExists(response, "text");
+        var responseText = response.GetProperty("text");
+        var responseFormat = responseText.GetProperty("format");
+        AssertJsonPropertyEquals(responseFormat, "type", "json_schema");
+        AssertJsonPropertyEquals(responseFormat, "name", "person");
+        AssertJsonPropertyEquals(responseFormat, "strict", true);
+
+        // Assert - Response has output
+        AssertJsonPropertyExists(response, "output");
+        var output = response.GetProperty("output");
+        Assert.True(output.GetArrayLength() > 0);
+        var message = output[0];
+        var content = message.GetProperty("content");
+        var textContent = content[0];
+        var text = textContent.GetProperty("text").GetString();
+        Assert.NotNull(text);
+        Assert.Equal(expectedText, text);
+
+        // Assert - Output text is valid JSON matching schema
+        using var jsonDoc = JsonDocument.Parse(text);
+        var jsonRoot = jsonDoc.RootElement;
+        AssertJsonPropertyExists(jsonRoot, "name");
+        AssertJsonPropertyExists(jsonRoot, "age");
+        AssertJsonPropertyExists(jsonRoot, "occupation");
+        Assert.Equal(JsonValueKind.String, jsonRoot.GetProperty("name").ValueKind);
+        Assert.Equal(JsonValueKind.Number, jsonRoot.GetProperty("age").ValueKind);
+        Assert.Equal(JsonValueKind.String, jsonRoot.GetProperty("occupation").ValueKind);
+
+        // Assert - Response status is completed
+        AssertJsonPropertyEquals(response, "status", "completed");
+
+        // Assert - Standard response fields
+        AssertJsonPropertyExists(response, "id");
+        AssertJsonPropertyEquals(response, "object", "response");
+        AssertJsonPropertyExists(response, "created_at");
+        AssertJsonPropertyExists(response, "model");
+        AssertJsonPropertyExists(response, "usage");
+    }
+
+    [Fact]
+    public async Task RefusalRequestResponseAsync()
+    {
+        // Arrange
+        string requestJson = LoadTraceFile("refusal/request.json");
+        using var expectedResponseDoc = LoadTraceDocument("refusal/response.json");
+        var expectedResponse = expectedResponseDoc.RootElement;
+
+        // Get expected refusal text
+        string expectedText = expectedResponse.GetProperty("output")[0]
+            .GetProperty("content")[0]
+            .GetProperty("text").GetString()!;
+
+        HttpClient client = await this.CreateTestServerAsync("refusal-agent", "You are a helpful assistant.", expectedText);
+
+        // Act
+        HttpResponseMessage httpResponse = await this.SendRequestAsync(client, "refusal-agent", requestJson);
+        using var responseDoc = await ParseResponseAsync(httpResponse);
+        var response = responseDoc.RootElement;
+
+        // Assert - Response is completed (refusal is a completed response, not an error)
+        AssertJsonPropertyEquals(response, "status", "completed");
+
+        // Assert - Response has output
+        AssertJsonPropertyExists(response, "output");
+        var output = response.GetProperty("output");
+        Assert.True(output.GetArrayLength() > 0);
+        var message = output[0];
+        AssertJsonPropertyEquals(message, "type", "message");
+        AssertJsonPropertyEquals(message, "status", "completed");
+
+        // Assert - Message content is refusal text
+        var content = message.GetProperty("content");
+        var textContent = content[0];
+        AssertJsonPropertyEquals(textContent, "type", "output_text");
+        var text = textContent.GetProperty("text").GetString();
+        Assert.NotNull(text);
+        Assert.Equal(expectedText, text);
+        Assert.Contains("can't assist", text, StringComparison.OrdinalIgnoreCase);
+
+        // Assert - Usage statistics present
+        AssertJsonPropertyExists(response, "usage");
+        var usage = response.GetProperty("usage");
+        var inputTokens = usage.GetProperty("input_tokens").GetInt32();
+        var outputTokens = usage.GetProperty("output_tokens").GetInt32();
+        Assert.True(inputTokens > 0);
+        Assert.True(outputTokens > 0);
+
+        // Assert - No error field
+        AssertJsonPropertyExists(response, "error");
+        Assert.Equal(JsonValueKind.Null, response.GetProperty("error").ValueKind);
+
+        // Assert - Standard response fields
+        AssertJsonPropertyExists(response, "id");
+        AssertJsonPropertyEquals(response, "object", "response");
+        AssertJsonPropertyExists(response, "created_at");
+        AssertJsonPropertyExists(response, "model");
+    }
+
+    [Fact]
+    public async Task ImageInputRequestResponseAsync()
+    {
+        // Arrange
+        string requestJson = LoadTraceFile("image_input/request.json");
+        using var expectedResponseDoc = LoadTraceDocument("image_input/response.json");
+        var expectedResponse = expectedResponseDoc.RootElement;
+
+        // Get expected text
+        string expectedText = expectedResponse.GetProperty("output")[0]
+            .GetProperty("content")[0]
+            .GetProperty("text").GetString()!;
+
+        HttpClient client = await this.CreateTestServerAsync("image-agent", "You are a helpful assistant.", expectedText);
+
+        // Act
+        HttpResponseMessage httpResponse = await this.SendRequestAsync(client, "image-agent", requestJson);
+        using var responseDoc = await ParseResponseAsync(httpResponse);
+        var response = responseDoc.RootElement;
+
+        // Parse the request
+        using var requestDoc = JsonDocument.Parse(requestJson);
+        var request = requestDoc.RootElement;
+
+        // Assert - Request has input array with message
+        AssertJsonPropertyExists(request, "input");
+        var input = request.GetProperty("input");
+        Assert.Equal(JsonValueKind.Array, input.ValueKind);
+        Assert.True(input.GetArrayLength() > 0);
+
+        // Assert - Input message has content with image
+        var inputMessage = input[0];
+        AssertJsonPropertyEquals(inputMessage, "type", "message");
+        AssertJsonPropertyEquals(inputMessage, "role", "user");
+        AssertJsonPropertyExists(inputMessage, "content");
+        var inputContent = inputMessage.GetProperty("content");
+        Assert.Equal(JsonValueKind.Array, inputContent.ValueKind);
+        Assert.True(inputContent.GetArrayLength() >= 2, "Content should have text and image");
+
+        // Assert - Content has input_text
+        var textPart = inputContent[0];
+        AssertJsonPropertyEquals(textPart, "type", "input_text");
+        AssertJsonPropertyExists(textPart, "text");
+
+        // Assert - Content has input_image
+        var imagePart = inputContent[1];
+        AssertJsonPropertyEquals(imagePart, "type", "input_image");
+        AssertJsonPropertyExists(imagePart, "image_url");
+        var imageUrl = imagePart.GetProperty("image_url").GetString();
+        Assert.NotNull(imageUrl);
+        Assert.NotEmpty(imageUrl);
+
+        // Assert - Response has output
+        AssertJsonPropertyExists(response, "output");
+        var output = response.GetProperty("output");
+        Assert.True(output.GetArrayLength() > 0);
+        var message = output[0];
+        var content = message.GetProperty("content");
+        var outputText = content[0].GetProperty("text").GetString();
+        Assert.NotNull(outputText);
+        Assert.Equal(expectedText, outputText);
+
+        // Assert - Response status is completed
+        AssertJsonPropertyEquals(response, "status", "completed");
+
+        // Assert - Standard response fields
+        AssertJsonPropertyExists(response, "id");
+        AssertJsonPropertyEquals(response, "object", "response");
+        AssertJsonPropertyExists(response, "created_at");
+        AssertJsonPropertyExists(response, "model");
+        AssertJsonPropertyExists(response, "usage");
+    }
+
+    [Fact]
+    public async Task ReasoningStreamingRequestResponseAsync()
+    {
+        // Arrange
+        string requestJson = LoadTraceFile("reasoning_streaming/request.json");
+        string expectedResponseSse = LoadTraceFile("reasoning_streaming/response.txt");
+
+        // Extract expected text from SSE events
+        var expectedEvents = ParseSseEventsFromContent(expectedResponseSse);
+        var deltaEvents = expectedEvents.Where(e => e.GetProperty("type").GetString() == "response.output_text.delta").ToList();
+        string expectedText = string.Concat(deltaEvents.Select(e => e.GetProperty("delta").GetString()));
+
+        HttpClient client = await this.CreateTestServerAsync("reasoning-streaming-agent", "You are a helpful assistant.", expectedText);
+
+        // Act
+        HttpResponseMessage httpResponse = await this.SendRequestAsync(client, "reasoning-streaming-agent", requestJson);
+
+        // Assert - Response should be SSE format
+        Assert.Equal("text/event-stream", httpResponse.Content.Headers.ContentType?.MediaType);
+
+        string responseSse = await httpResponse.Content.ReadAsStringAsync();
+        var events = ParseSseEventsFromContent(responseSse);
+
+        // Parse the request
+        using var requestDoc = JsonDocument.Parse(requestJson);
+        var request = requestDoc.RootElement;
+
+        // Assert - Request has stream flag and reasoning configuration
+        AssertJsonPropertyEquals(request, "stream", true);
+        AssertJsonPropertyExists(request, "reasoning");
+        var reasoning = request.GetProperty("reasoning");
+        AssertJsonPropertyExists(reasoning, "effort");
+
+        // Assert - Response has event types for reasoning
+        var eventTypes = events.ConvertAll(e => e.GetProperty("type").GetString()!);
+        Assert.Contains("response.created", eventTypes);
+        Assert.Contains("response.output_item.added", eventTypes);
+
+        // Assert - Has reasoning item added event
+        var reasoningAddedEvents = events.Where(e =>
+        {
+            var type = e.GetProperty("type").GetString();
+            if (type == "response.output_item.added")
+            {
+                var item = e.GetProperty("item");
+                return item.GetProperty("type").GetString() == "reasoning";
+            }
+            return false;
+        }).ToList();
+
+        if (reasoningAddedEvents.Count > 0)
+        {
+            var reasoningEvent = reasoningAddedEvents[0];
+            var item = reasoningEvent.GetProperty("item");
+            AssertJsonPropertyEquals(item, "type", "reasoning");
+            AssertJsonPropertyExists(item, "id");
+            var reasoningId = item.GetProperty("id").GetString();
+            Assert.NotNull(reasoningId);
+            Assert.StartsWith("rs_", reasoningId);
+        }
+
+        // Assert - Final response has reasoning configuration
+        var finalEvent = events.FirstOrDefault(e =>
+        {
+            var type = e.GetProperty("type").GetString();
+            return type == "response.completed" || type == "response.incomplete";
+        });
+        Assert.False(finalEvent.Equals(default(JsonElement)));
+        var finalResponse = finalEvent.GetProperty("response");
+        AssertJsonPropertyExists(finalResponse, "reasoning");
+
+        // Assert - Has usage with reasoning tokens
+        AssertJsonPropertyExists(finalResponse, "usage");
+        var usage = finalResponse.GetProperty("usage");
+        var outputDetails = usage.GetProperty("output_tokens_details");
+        AssertJsonPropertyExists(outputDetails, "reasoning_tokens");
+    }
+
+    [Fact]
+    public async Task JsonOutputStreamingRequestResponseAsync()
+    {
+        // Arrange
+        string requestJson = LoadTraceFile("json_output_streaming/request.json");
+        string expectedResponseSse = LoadTraceFile("json_output_streaming/response.txt");
+
+        // Extract expected text from SSE events
+        var expectedEvents = ParseSseEventsFromContent(expectedResponseSse);
+        var deltaEvents = expectedEvents.Where(e => e.GetProperty("type").GetString() == "response.output_text.delta").ToList();
+        string expectedText = string.Concat(deltaEvents.Select(e => e.GetProperty("delta").GetString()));
+
+        HttpClient client = await this.CreateTestServerAsync("json-streaming-agent", "You are a helpful assistant.", expectedText);
+
+        // Act
+        HttpResponseMessage httpResponse = await this.SendRequestAsync(client, "json-streaming-agent", requestJson);
+
+        // Assert - Response should be SSE format
+        Assert.Equal("text/event-stream", httpResponse.Content.Headers.ContentType?.MediaType);
+
+        string responseSse = await httpResponse.Content.ReadAsStringAsync();
+        var events = ParseSseEventsFromContent(responseSse);
+
+        // Parse the request
+        using var requestDoc = JsonDocument.Parse(requestJson);
+        var request = requestDoc.RootElement;
+
+        // Assert - Request has stream flag and json_schema format
+        AssertJsonPropertyEquals(request, "stream", true);
+        AssertJsonPropertyExists(request, "text");
+        var text = request.GetProperty("text");
+        var format = text.GetProperty("format");
+        AssertJsonPropertyEquals(format, "type", "json_schema");
+
+        // Assert - Response has standard streaming events
+        var eventTypes = events.ConvertAll(e => e.GetProperty("type").GetString()!);
+        Assert.Contains("response.created", eventTypes);
+        Assert.Contains("response.output_text.delta", eventTypes);
+
+        // Assert - Final response preserves text format
+        var finalEvent = events.FirstOrDefault(e =>
+        {
+            var type = e.GetProperty("type").GetString();
+            return type == "response.completed" || type == "response.incomplete";
+        });
+        Assert.False(finalEvent.Equals(default(JsonElement)));
+        var finalResponse = finalEvent.GetProperty("response");
+        AssertJsonPropertyExists(finalResponse, "text");
+        var responseText = finalResponse.GetProperty("text");
+        var responseFormat = responseText.GetProperty("format");
+        AssertJsonPropertyEquals(responseFormat, "type", "json_schema");
+
+        // Assert - Accumulated text is valid JSON
+        var doneEvent = events.First(e => e.GetProperty("type").GetString() == "response.output_text.done");
+        var finalText = doneEvent.GetProperty("text").GetString();
+        Assert.NotNull(finalText);
+        using var jsonDoc = JsonDocument.Parse(finalText);
+        Assert.Equal(JsonValueKind.Object, jsonDoc.RootElement.ValueKind);
+    }
+
+    [Fact]
+    public async Task RefusalStreamingRequestResponseAsync()
+    {
+        // Arrange
+        string requestJson = LoadTraceFile("refusal_streaming/request.json");
+        string expectedResponseSse = LoadTraceFile("refusal_streaming/response.txt");
+
+        // Extract expected text from SSE events
+        var expectedEvents = ParseSseEventsFromContent(expectedResponseSse);
+        var deltaEvents = expectedEvents.Where(e => e.GetProperty("type").GetString() == "response.output_text.delta").ToList();
+        string expectedText = string.Concat(deltaEvents.Select(e => e.GetProperty("delta").GetString()));
+
+        HttpClient client = await this.CreateTestServerAsync("refusal-streaming-agent", "You are a helpful assistant.", expectedText);
+
+        // Act
+        HttpResponseMessage httpResponse = await this.SendRequestAsync(client, "refusal-streaming-agent", requestJson);
+
+        // Assert - Response should be SSE format
+        Assert.Equal("text/event-stream", httpResponse.Content.Headers.ContentType?.MediaType);
+
+        string responseSse = await httpResponse.Content.ReadAsStringAsync();
+        var events = ParseSseEventsFromContent(responseSse);
+
+        // Parse the request
+        using var requestDoc = JsonDocument.Parse(requestJson);
+        var request = requestDoc.RootElement;
+
+        // Assert - Request has stream flag
+        AssertJsonPropertyEquals(request, "stream", true);
+
+        // Assert - Response has standard streaming events
+        var eventTypes = events.ConvertAll(e => e.GetProperty("type").GetString()!);
+        Assert.Contains("response.created", eventTypes);
+        Assert.Contains("response.output_text.delta", eventTypes);
+
+        // Assert - Final response is completed (refusal is not an error)
+        var finalEvent = events.FirstOrDefault(e =>
+        {
+            var type = e.GetProperty("type").GetString();
+            return type == "response.completed" || type == "response.incomplete";
+        });
+        Assert.False(finalEvent.Equals(default(JsonElement)));
+        var finalResponse = finalEvent.GetProperty("response");
+        var status = finalResponse.GetProperty("status").GetString();
+        Assert.True(status == "completed" || status == "incomplete");
+
+        // Assert - Text done has refusal content
+        var doneEvent = events.First(e => e.GetProperty("type").GetString() == "response.output_text.done");
+        var finalText = doneEvent.GetProperty("text").GetString();
+        Assert.NotNull(finalText);
+        Assert.Contains("can't assist", finalText, StringComparison.OrdinalIgnoreCase);
+
+        // Assert - No error in final response
+        AssertJsonPropertyExists(finalResponse, "error");
+        Assert.Equal(JsonValueKind.Null, finalResponse.GetProperty("error").ValueKind);
+    }
+
+    [Fact]
+    public async Task ImageInputStreamingRequestResponseAsync()
+    {
+        // Arrange
+        string requestJson = LoadTraceFile("image_input_streaming/request.json");
+        string expectedResponseSse = LoadTraceFile("image_input_streaming/response.txt");
+
+        // Extract expected text from SSE events
+        var expectedEvents = ParseSseEventsFromContent(expectedResponseSse);
+        var deltaEvents = expectedEvents.Where(e => e.GetProperty("type").GetString() == "response.output_text.delta").ToList();
+        string expectedText = string.Concat(deltaEvents.Select(e => e.GetProperty("delta").GetString()));
+
+        HttpClient client = await this.CreateTestServerAsync("image-streaming-agent", "You are a helpful assistant.", expectedText);
+
+        // Act
+        HttpResponseMessage httpResponse = await this.SendRequestAsync(client, "image-streaming-agent", requestJson);
+
+        // Assert - Response should be SSE format
+        Assert.Equal("text/event-stream", httpResponse.Content.Headers.ContentType?.MediaType);
+
+        string responseSse = await httpResponse.Content.ReadAsStringAsync();
+        var events = ParseSseEventsFromContent(responseSse);
+
+        // Parse the request
+        using var requestDoc = JsonDocument.Parse(requestJson);
+        var request = requestDoc.RootElement;
+
+        // Assert - Request has stream flag
+        AssertJsonPropertyEquals(request, "stream", true);
+
+        // Assert - Request has input array with image
+        AssertJsonPropertyExists(request, "input");
+        var input = request.GetProperty("input");
+        Assert.Equal(JsonValueKind.Array, input.ValueKind);
+        var inputMessage = input[0];
+        var inputContent = inputMessage.GetProperty("content");
+        bool hasImage = false;
+        foreach (var part in inputContent.EnumerateArray())
+        {
+            if (part.GetProperty("type").GetString() == "input_image")
+            {
+                hasImage = true;
+                break;
+            }
+        }
+        Assert.True(hasImage, "Request should have input_image content");
+
+        // Assert - Response has standard streaming events
+        var eventTypes = events.ConvertAll(e => e.GetProperty("type").GetString()!);
+        Assert.Contains("response.created", eventTypes);
+        Assert.Contains("response.output_text.delta", eventTypes);
+
+        // Assert - Final response is completed
+        var finalEvent = events.FirstOrDefault(e =>
+        {
+            var type = e.GetProperty("type").GetString();
+            return type == "response.completed" || type == "response.incomplete";
+        });
+        Assert.False(finalEvent.Equals(default(JsonElement)));
+        var finalResponse = finalEvent.GetProperty("response");
+        AssertJsonPropertyExists(finalResponse, "status");
+
+        // Assert - Text done has content
+        var doneEvent = events.First(e => e.GetProperty("type").GetString() == "response.output_text.done");
+        var finalText = doneEvent.GetProperty("text").GetString();
+        Assert.NotNull(finalText);
+        Assert.NotEmpty(finalText);
+    }
+
     /// <summary>
     /// Helper to parse SSE events from a streaming response content string.
     /// </summary>

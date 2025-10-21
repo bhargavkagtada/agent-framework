@@ -50,7 +50,10 @@ internal static class ResponseConverterExtensions
             ToolChoice = request.ToolChoice,
             ServiceTier = "default",
             Store = request.Store ?? true,
-            PreviousResponseId = request.PreviousResponseId
+            PreviousResponseId = request.PreviousResponseId,
+            Reasoning = request.Reasoning,
+            Text = request.Text,
+            MaxOutputTokens = request.MaxOutputTokens
         };
     }
 

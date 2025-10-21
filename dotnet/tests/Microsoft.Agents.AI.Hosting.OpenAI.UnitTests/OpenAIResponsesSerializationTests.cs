@@ -217,6 +217,128 @@ public sealed class OpenAIResponsesSerializationTests : ConformanceTestBase
     }
 
     [Fact]
+    public void Deserialize_ImageInputRequest_HasImageData()
+    {
+        // Arrange
+        string json = LoadTraceFile("image_input/request.json");
+
+        // Act
+        CreateResponse? request = JsonSerializer.Deserialize(json, Responses.ResponsesJsonContext.Default.CreateResponse);
+
+        // Assert
+        Assert.NotNull(request);
+        Assert.NotNull(request.Input);
+    }
+
+    [Fact]
+    public void Deserialize_ImageInputStreamingRequest_HasStreamAndImage()
+    {
+        // Arrange
+        string json = LoadTraceFile("image_input_streaming/request.json");
+
+        // Act
+        CreateResponse? request = JsonSerializer.Deserialize(json, Responses.ResponsesJsonContext.Default.CreateResponse);
+
+        // Assert
+        Assert.NotNull(request);
+        Assert.True(request.Stream);
+        Assert.NotNull(request.Input);
+    }
+
+    [Fact]
+    public void Deserialize_JsonOutputRequest_HasJsonSchema()
+    {
+        // Arrange
+        string json = LoadTraceFile("json_output/request.json");
+
+        // Act
+        CreateResponse? request = JsonSerializer.Deserialize(json, Responses.ResponsesJsonContext.Default.CreateResponse);
+
+        // Assert
+        Assert.NotNull(request);
+        Assert.NotNull(request.Input);
+        Assert.NotNull(request.Text);
+        Assert.True(request.Text.Value.TryGetProperty("format", out var format));
+        Assert.Equal("json_schema", format.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public void Deserialize_JsonOutputStreamingRequest_HasJsonSchemaAndStream()
+    {
+        // Arrange
+        string json = LoadTraceFile("json_output_streaming/request.json");
+
+        // Act
+        CreateResponse? request = JsonSerializer.Deserialize(json, Responses.ResponsesJsonContext.Default.CreateResponse);
+
+        // Assert
+        Assert.NotNull(request);
+        Assert.True(request.Stream);
+        Assert.NotNull(request.Input);
+        Assert.NotNull(request.Text);
+        Assert.True(request.Text.Value.TryGetProperty("format", out var format));
+        Assert.Equal("json_schema", format.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public void Deserialize_ReasoningRequest_HasReasoningConfiguration()
+    {
+        // Arrange
+        string json = LoadTraceFile("reasoning/request.json");
+
+        // Act
+        CreateResponse? request = JsonSerializer.Deserialize(json, Responses.ResponsesJsonContext.Default.CreateResponse);
+
+        // Assert
+        Assert.NotNull(request);
+        Assert.NotNull(request.Reasoning);
+    }
+
+    [Fact]
+    public void Deserialize_ReasoningStreamingRequest_HasReasoningAndStream()
+    {
+        // Arrange
+        string json = LoadTraceFile("reasoning_streaming/request.json");
+
+        // Act
+        CreateResponse? request = JsonSerializer.Deserialize(json, Responses.ResponsesJsonContext.Default.CreateResponse);
+
+        // Assert
+        Assert.NotNull(request);
+        Assert.True(request.Stream);
+        Assert.NotNull(request.Reasoning);
+    }
+
+    [Fact]
+    public void Deserialize_RefusalRequest_CanBeDeserialized()
+    {
+        // Arrange
+        string json = LoadTraceFile("refusal/request.json");
+
+        // Act
+        CreateResponse? request = JsonSerializer.Deserialize(json, Responses.ResponsesJsonContext.Default.CreateResponse);
+
+        // Assert
+        Assert.NotNull(request);
+        Assert.NotNull(request.Input);
+    }
+
+    [Fact]
+    public void Deserialize_RefusalStreamingRequest_HasStream()
+    {
+        // Arrange
+        string json = LoadTraceFile("refusal_streaming/request.json");
+
+        // Act
+        CreateResponse? request = JsonSerializer.Deserialize(json, Responses.ResponsesJsonContext.Default.CreateResponse);
+
+        // Assert
+        Assert.NotNull(request);
+        Assert.True(request.Stream);
+        Assert.NotNull(request.Input);
+    }
+
+    [Fact]
     public void Deserialize_AllRequests_CanBeDeserialized()
     {
         // Arrange
@@ -226,7 +348,15 @@ public sealed class OpenAIResponsesSerializationTests : ConformanceTestBase
             "streaming/request.json",
             "conversation/request.json",
             "metadata/request.json",
-            "tool_call/request.json"
+            "tool_call/request.json",
+            "image_input/request.json",
+            "image_input_streaming/request.json",
+            "json_output/request.json",
+            "json_output_streaming/request.json",
+            "reasoning/request.json",
+            "reasoning_streaming/request.json",
+            "refusal/request.json",
+            "refusal_streaming/request.json"
         ];
 
         foreach (var path in requestPaths)
@@ -434,6 +564,70 @@ public sealed class OpenAIResponsesSerializationTests : ConformanceTestBase
     }
 
     [Fact]
+    public void Deserialize_ImageInputResponse_HasImageInInput()
+    {
+        // Arrange
+        string json = LoadTraceFile("image_input/response.json");
+
+        // Act
+        Response? response = JsonSerializer.Deserialize(json, Responses.ResponsesJsonContext.Default.Response);
+
+        // Assert
+        Assert.NotNull(response);
+        Assert.Equal(ResponseStatus.Completed, response.Status);
+        Assert.NotNull(response.Output);
+    }
+
+    [Fact]
+    public void Deserialize_JsonOutputResponse_HasStructuredOutput()
+    {
+        // Arrange
+        string json = LoadTraceFile("json_output/response.json");
+
+        // Act
+        Response? response = JsonSerializer.Deserialize(json, Responses.ResponsesJsonContext.Default.Response);
+
+        // Assert
+        Assert.NotNull(response);
+        Assert.Equal(ResponseStatus.Completed, response.Status);
+        Assert.NotNull(response.Output);
+        Assert.NotNull(response.Text);
+        Assert.True(response.Text.Value.TryGetProperty("format", out var format));
+        Assert.Equal("json_schema", format.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public void Deserialize_ReasoningResponse_HasReasoningItems()
+    {
+        // Arrange
+        string json = LoadTraceFile("reasoning/response.json");
+
+        // Act
+        Response? response = JsonSerializer.Deserialize(json, Responses.ResponsesJsonContext.Default.Response);
+
+        // Assert
+        Assert.NotNull(response);
+        Assert.Equal(ResponseStatus.Completed, response.Status);
+        Assert.NotNull(response.Output);
+        Assert.NotNull(response.Reasoning);
+    }
+
+    [Fact]
+    public void Deserialize_RefusalResponse_HasRefusalContent()
+    {
+        // Arrange
+        string json = LoadTraceFile("refusal/response.json");
+
+        // Act
+        Response? response = JsonSerializer.Deserialize(json, Responses.ResponsesJsonContext.Default.Response);
+
+        // Assert
+        Assert.NotNull(response);
+        Assert.Equal(ResponseStatus.Completed, response.Status);
+        Assert.NotNull(response.Output);
+    }
+
+    [Fact]
     public void Deserialize_AllResponses_HaveRequiredFields()
     {
         // Arrange
@@ -442,7 +636,11 @@ public sealed class OpenAIResponsesSerializationTests : ConformanceTestBase
             "basic/response.json",
             "conversation/response.json",
             "metadata/response.json",
-            "tool_call/response.json"
+            "tool_call/response.json",
+            "image_input/response.json",
+            "json_output/response.json",
+            "reasoning/response.json",
+            "refusal/response.json"
         ];
 
         foreach (var path in responsePaths)
@@ -714,6 +912,110 @@ public sealed class OpenAIResponsesSerializationTests : ConformanceTestBase
                           evt is StreamingResponseIncomplete ||
                           evt is StreamingResponseFailed;
         Assert.True(isTerminal, $"Expected terminal event, got: {evt.GetType().Name}");
+    }
+
+    [Fact]
+    public void ParseStreamingEvents_ImageInputStreaming_HasImageEvents()
+    {
+        // Arrange
+        string sseContent = LoadTraceFile("image_input_streaming/response.txt");
+
+        // Act
+        var events = ParseSseEventsFromContent(sseContent);
+
+        // Assert
+        Assert.NotEmpty(events);
+        Assert.All(events, evt =>
+        {
+            StreamingResponseEvent? parsed = JsonSerializer.Deserialize(evt.GetRawText(), Responses.ResponsesJsonContext.Default.StreamingResponseEvent);
+            Assert.NotNull(parsed);
+        });
+    }
+
+    [Fact]
+    public void ParseStreamingEvents_JsonOutputStreaming_HasJsonSchemaEvents()
+    {
+        // Arrange
+        string sseContent = LoadTraceFile("json_output_streaming/response.txt");
+
+        // Act
+        var events = ParseSseEventsFromContent(sseContent);
+
+        // Assert
+        Assert.NotEmpty(events);
+        Assert.All(events, evt =>
+        {
+            StreamingResponseEvent? parsed = JsonSerializer.Deserialize(evt.GetRawText(), Responses.ResponsesJsonContext.Default.StreamingResponseEvent);
+            Assert.NotNull(parsed);
+        });
+    }
+
+    [Fact]
+    public void ParseStreamingEvents_ReasoningStreaming_HasReasoningEvents()
+    {
+        // Arrange
+        string sseContent = LoadTraceFile("reasoning_streaming/response.txt");
+
+        // Act
+        var events = ParseSseEventsFromContent(sseContent);
+        var eventTypes = events.Select(e => e.GetProperty("type").GetString()).ToHashSet();
+
+        // Assert
+        Assert.NotEmpty(events);
+        // Should have reasoning-related events
+        Assert.Contains("response.created", eventTypes);
+        Assert.All(events, evt =>
+        {
+            StreamingResponseEvent? parsed = JsonSerializer.Deserialize(evt.GetRawText(), Responses.ResponsesJsonContext.Default.StreamingResponseEvent);
+            Assert.NotNull(parsed);
+        });
+    }
+
+    [Fact]
+    public void ParseStreamingEvents_RefusalStreaming_HasRefusalEvents()
+    {
+        // Arrange
+        string sseContent = LoadTraceFile("refusal_streaming/response.txt");
+
+        // Act
+        var events = ParseSseEventsFromContent(sseContent);
+        var eventTypes = events.Select(e => e.GetProperty("type").GetString()).ToHashSet();
+
+        // Assert
+        Assert.NotEmpty(events);
+        // Should have refusal-related events
+        Assert.All(events, evt =>
+        {
+            StreamingResponseEvent? parsed = JsonSerializer.Deserialize(evt.GetRawText(), Responses.ResponsesJsonContext.Default.StreamingResponseEvent);
+            Assert.NotNull(parsed);
+        });
+    }
+
+    [Fact]
+    public void ParseStreamingEvents_AllStreamingTraces_CanBeDeserialized()
+    {
+        // Arrange
+        string[] streamingPaths =
+        [
+            "streaming/response.txt",
+            "image_input_streaming/response.txt",
+            "json_output_streaming/response.txt",
+            "reasoning_streaming/response.txt",
+            "refusal_streaming/response.txt"
+        ];
+
+        foreach (var path in streamingPaths)
+        {
+            string sseContent = LoadTraceFile(path);
+
+            // Act & Assert
+            foreach (var eventJson in ParseSseEventsFromContent(sseContent))
+            {
+                // Should not throw
+                StreamingResponseEvent? evt = JsonSerializer.Deserialize(eventJson.GetRawText(), Responses.ResponsesJsonContext.Default.StreamingResponseEvent);
+                Assert.NotNull(evt);
+            }
+        }
     }
 
     [Fact]
