@@ -59,7 +59,7 @@ internal static class AIAgentResponsesProcessor
 
             var chatMessages = createResponse.Input.GetInputMessages().Select(i => i.ToChatMessage()).ToList();
             var events = agent.RunStreamingAsync(chatMessages, cancellationToken: cancellationToken)
-                .ToResponseEventsAsync(createResponse, context, cancellationToken)
+                .ToStreamingResponseAsync(createResponse, context, cancellationToken)
                 .Select(static evt => new SseItem<StreamingResponseEvent>(evt, evt.Type));
             return SseFormatter.WriteAsync(
                 source: events,

@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Text;
@@ -136,6 +137,35 @@ public abstract class ConformanceTestBase : IAsyncDisposable
         builder.WebHost.UseTestServer();
 
         IChatClient mockChatClient = new TestHelpers.SimpleMockChatClient(responseText);
+        builder.Services.AddKeyedSingleton("chat-client", mockChatClient);
+        builder.AddAIAgent(agentName, instructions, chatClientServiceKey: "chat-client");
+        builder.AddOpenAIResponses();
+
+        this._app = builder.Build();
+        this._app.MapOpenAIResponses(agentName);
+
+        await this._app.StartAsync();
+
+        TestServer testServer = this._app.Services.GetRequiredService<IServer>() as TestServer
+            ?? throw new InvalidOperationException("TestServer not found");
+
+        this._httpClient = testServer.CreateClient();
+        return this._httpClient;
+    }
+
+    /// <summary>
+    /// Creates a test server with a mock chat client that returns custom content.
+    /// </summary>
+    protected async Task<HttpClient> CreateTestServerAsync(
+        string agentName,
+        string instructions,
+        string responseText,
+        Func<ChatMessage, IEnumerable<AIContent>> contentProvider)
+    {
+        WebApplicationBuilder builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseTestServer();
+
+        IChatClient mockChatClient = new TestHelpers.CustomContentMockChatClient(contentProvider);
         builder.Services.AddKeyedSingleton("chat-client", mockChatClient);
         builder.AddAIAgent(agentName, instructions, chatClientServiceKey: "chat-client");
         builder.AddOpenAIResponses();

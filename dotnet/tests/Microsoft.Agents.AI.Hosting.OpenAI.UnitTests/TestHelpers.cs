@@ -406,4 +406,83 @@ internal static class TestHelpers
         {
         }
     }
+
+    /// <summary>
+    /// Mock implementation of IChatClient that returns custom content based on a provider function.
+    /// </summary>
+    internal sealed class CustomContentMockChatClient : IChatClient
+    {
+        private readonly Func<ChatMessage, IEnumerable<AIContent>> _contentProvider;
+
+        public CustomContentMockChatClient(Func<ChatMessage, IEnumerable<AIContent>> contentProvider)
+        {
+            this._contentProvider = contentProvider;
+        }
+
+        public ChatClientMetadata Metadata { get; } = new("Test", new Uri("https://test.example.com"), "test-model");
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            ChatMessage lastMessage = messages.Last();
+            IEnumerable<AIContent> contents = this._contentProvider(lastMessage);
+            ChatMessage message = new(ChatRole.Assistant, contents.ToList());
+            ChatResponse response = new([message])
+            {
+                ModelId = "test-model",
+                FinishReason = ChatFinishReason.Stop,
+                Usage = new UsageDetails
+                {
+                    InputTokenCount = 10,
+                    OutputTokenCount = 5,
+                    TotalTokenCount = 15
+                }
+            };
+            return Task.FromResult(response);
+        }
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(1, cancellationToken);
+
+            ChatMessage lastMessage = messages.Last();
+            IEnumerable<AIContent> contents = this._contentProvider(lastMessage);
+            List<AIContent> contentList = contents.ToList();
+
+            // Stream each content item separately
+            for (int i = 0; i < contentList.Count; i++)
+            {
+                List<AIContent> updateContents = [contentList[i]];
+
+                // Add usage to the last update
+                if (i == contentList.Count - 1)
+                {
+                    updateContents.Add(new UsageContent(new UsageDetails
+                    {
+                        InputTokenCount = 10,
+                        OutputTokenCount = 5,
+                        TotalTokenCount = 15
+                    }));
+                }
+
+                yield return new ChatResponseUpdate
+                {
+                    Contents = updateContents,
+                    Role = ChatRole.Assistant
+                };
+            }
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceType.IsInstanceOfType(this) ? this : null;
+
+        public void Dispose()
+        {
+        }
+    }
 }

@@ -23,13 +23,13 @@ internal static class AgentRunResponseUpdateExtensions
     /// Converts a stream of <see cref="AgentRunResponseUpdate"/> to stream of <see cref="StreamingResponseEvent"/>.
     /// </summary>
     /// <param name="updates">The agent run response updates.</param>
-    /// <param name="createResponse">The create response request.</param>
+    /// <param name="request">The create response request.</param>
     /// <param name="context">The agent invocation context.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A stream of response events.</returns>
-    internal static async IAsyncEnumerable<StreamingResponseEvent> ToResponseEventsAsync(
+    internal static async IAsyncEnumerable<StreamingResponseEvent> ToStreamingResponseAsync(
         this IAsyncEnumerable<AgentRunResponseUpdate> updates,
-        CreateResponse createResponse,
+        CreateResponse request,
         AgentInvocationContext context,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -40,7 +40,7 @@ internal static class AgentRunResponseUpdateExtensions
         yield return new StreamingResponseInProgress { SequenceNumber = seq.GetNext(), Response = CreateResponse(status: ResponseStatus.InProgress) };
 
         var outputIndex = 0;
-        List<ItemResource> itemResources = [];
+        List<ItemResource> items = [];
         var updateEnumerator = updates.GetAsyncEnumerator(cancellationToken);
         await using var _ = updateEnumerator.ConfigureAwait(false);
 
@@ -51,7 +51,7 @@ internal static class AgentRunResponseUpdateExtensions
             cancellationToken.ThrowIfCancellationRequested();
             var update = updateEnumerator.Current;
 
-            if (IsNewMessage(update, previousUpdate))
+            if (!IsSameMessage(update, previousUpdate))
             {
                 // Finalize the current generator when moving to a new message.
                 foreach (var evt in generator?.Complete() ?? [])
@@ -93,6 +93,12 @@ internal static class AgentRunResponseUpdateExtensions
                         TextContent => new AssistantMessageEventGenerator(context.IdGenerator, seq, outputIndex),
                         FunctionCallContent => new FunctionCallEventGenerator(context.IdGenerator, seq, outputIndex, context.JsonSerializerOptions),
                         FunctionResultContent => new FunctionResultEventGenerator(context.IdGenerator, seq, outputIndex),
+                        ErrorContent => new ErrorContentEventGenerator(context.IdGenerator, seq, outputIndex),
+                        UriContent uriContent when uriContent.HasTopLevelMediaType("image") => new ImageContentEventGenerator(context.IdGenerator, seq, outputIndex),
+                        DataContent dataContent when dataContent.HasTopLevelMediaType("image") => new ImageContentEventGenerator(context.IdGenerator, seq, outputIndex),
+                        DataContent dataContent when dataContent.HasTopLevelMediaType("audio") => new AudioContentEventGenerator(context.IdGenerator, seq, outputIndex),
+                        HostedFileContent => new HostedFileContentEventGenerator(context.IdGenerator, seq, outputIndex),
+                        DataContent => new FileContentEventGenerator(context.IdGenerator, seq, outputIndex),
                         _ => null
                     };
 
@@ -118,14 +124,13 @@ internal static class AgentRunResponseUpdateExtensions
             yield return evt;
         }
 
-        Response completedResponse = CreateResponse(status: ResponseStatus.Completed, outputs: itemResources);
-        yield return new StreamingResponseCompleted { SequenceNumber = seq.GetNext(), Response = completedResponse };
+        yield return new StreamingResponseCompleted { SequenceNumber = seq.GetNext(), Response = CreateResponse(status: ResponseStatus.Completed, outputs: items) };
 
         void OnEvent(StreamingResponseEvent evt)
         {
             if (evt is StreamingOutputItemDone itemDone)
             {
-                itemResources.Add(itemDone.Item);
+                items.Add(itemDone.Item);
             }
         }
 
@@ -135,35 +140,35 @@ internal static class AgentRunResponseUpdateExtensions
             {
                 Id = context.ResponseId,
                 CreatedAt = createdAt.ToUnixTimeSeconds(),
-                Model = createResponse.Agent?.Name ?? createResponse.Model,
+                Model = request.Agent?.Name ?? request.Model,
                 Status = status,
-                Agent = createResponse.Agent?.ToAgentId(),
+                Agent = request.Agent?.ToAgentId(),
                 Conversation = new ConversationReference { Id = context.ConversationId },
-                Metadata = createResponse.Metadata != null ? new Dictionary<string, string>(createResponse.Metadata) : [],
-                Instructions = createResponse.Instructions,
-                Temperature = createResponse.Temperature ?? 1.0,
-                TopP = createResponse.TopP ?? 1.0,
+                Metadata = request.Metadata != null ? new Dictionary<string, string>(request.Metadata) : [],
+                Instructions = request.Instructions,
+                Temperature = request.Temperature ?? 1.0,
+                TopP = request.TopP ?? 1.0,
                 Output = outputs?.ToList() ?? [],
                 Usage = latestUsage,
-                ParallelToolCalls = createResponse.ParallelToolCalls ?? true,
-                Tools = createResponse.Tools?.Select(ResponseConverterExtensions.ProcessTool).ToList() ?? [],
-                ToolChoice = createResponse.ToolChoice,
+                ParallelToolCalls = request.ParallelToolCalls ?? true,
+                Tools = request.Tools?.Select(ResponseConverterExtensions.ProcessTool).ToList() ?? [],
+                ToolChoice = request.ToolChoice,
                 ServiceTier = "default",
-                Store = createResponse.Store ?? true
+                Store = request.Store ?? true
             };
         }
     }
 
-    private static bool IsNewMessage(AgentRunResponseUpdate? first, AgentRunResponseUpdate? second)
+    private static bool IsSameMessage(AgentRunResponseUpdate? first, AgentRunResponseUpdate? second)
     {
-        return NotEmptyOrEqual(first?.AuthorName, second?.AuthorName) ||
-               NotEmptyOrEqual(first?.MessageId, second?.MessageId) ||
-               NotNullOrEqual(first?.Role, second?.Role);
+        return IsSameValue(first?.MessageId, second?.MessageId)
+            && IsSameValue(first?.AuthorName, second?.AuthorName)
+            && IsSameRole(first?.Role, second?.Role);
 
-        static bool NotEmptyOrEqual(string? s1, string? s2) =>
-                s1 is { Length: > 0 } str1 && s2 is { Length: > 0 } str2 && str1 != str2;
+        static bool IsSameValue(string? str1, string? str2) =>
+            str1 is not { Length: > 0 } || str2 is not { Length: > 0 } || str1 == str2;
 
-        static bool NotNullOrEqual(ChatRole? r1, ChatRole? r2) =>
-            r1.HasValue && r2.HasValue && r1.Value != r2.Value;
+        static bool IsSameRole(ChatRole? value1, ChatRole? value2) =>
+            !value1.HasValue || !value2.HasValue || value1.Value == value2.Value;
     }
 }
