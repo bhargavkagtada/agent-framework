@@ -16,5 +16,6 @@
       ]
     }
   ],
-  "max_output_tokens": 150
+  "max_output_tokens": 150,
+  "stream": true
 }

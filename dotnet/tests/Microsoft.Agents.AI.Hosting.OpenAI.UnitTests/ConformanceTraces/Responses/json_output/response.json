@@ -1,7 +1,7 @@
 {
-  "id": "resp_01af0986c49d030f0068f6fa8d348081958642d85ad7456b69",
+  "id": "resp_0814209c47894f060068f6fbd7b30c8195b9dedefbfecd827c",
   "object": "response",
-  "created_at": 1761016461,
+  "created_at": 1761016791,
   "status": "completed",
   "background": false,
   "billing": {
@@ -10,12 +10,12 @@
   "error": null,
   "incomplete_details": null,
   "instructions": null,
-  "max_output_tokens": 150,
+  "max_output_tokens": 100,
   "max_tool_calls": null,
   "model": "gpt-4o-mini-2024-07-18",
   "output": [
     {
-      "id": "msg_01af0986c49d030f0068f6fa90a7e08195a035c8916766681b",
+      "id": "msg_0814209c47894f060068f6fbd9a6f481958231a154f65fbed6",
       "type": "message",
       "status": "completed",
       "content": [
@@ -23,7 +23,7 @@
           "type": "output_text",
           "annotations": [],
           "logprobs": [],
-          "text": "The image depicts a serene landscape featuring a wooden pathway stretching through lush green grass and plant life. The sky is bright with a few clouds, suggesting a pleasant day. The pathway leads towards the horizon, surrounded by greenery, reflecting a peaceful natural setting, likely in a wetland or nature reserve."
+          "text": "{\"name\":\"Alice Johnson\",\"age\":28,\"occupation\":\"Software Engineer\"}"
         }
       ],
       "role": "assistant"
@@ -42,7 +42,30 @@
   "temperature": 1.0,
   "text": {
     "format": {
-      "type": "text"
+      "type": "json_schema",
+      "description": null,
+      "name": "person",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "age": {
+            "type": "integer"
+          },
+          "occupation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "age",
+          "occupation"
+        ],
+        "additionalProperties": false
+      },
+      "strict": true
     },
     "verbosity": "medium"
   },
@@ -52,15 +75,15 @@
   "top_p": 1.0,
   "truncation": "disabled",
   "usage": {
-    "input_tokens": 36847,
+    "input_tokens": 56,
     "input_tokens_details": {
       "cached_tokens": 0
     },
-    "output_tokens": 60,
+    "output_tokens": 16,
     "output_tokens_details": {
       "reasoning_tokens": 0
     },
-    "total_tokens": 36907
+    "total_tokens": 72
   },
   "user": null,
   "metadata": {}
