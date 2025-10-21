@@ -21,6 +21,115 @@ namespace Microsoft.Agents.AI.Hosting.OpenAI.UnitTests;
 /// </summary>
 public sealed class ContentTypeEventGeneratorTests : ConformanceTestBase
 {
+    #region TextReasoningContent Tests
+
+    [Fact]
+    public async Task TextReasoningContent_GeneratesReasoningItem_SuccessAsync()
+    {
+        // Arrange
+        const string AgentName = "reasoning-content-agent";
+        const string ExpectedText = "The first 10 prime numbers are: 2, 3, 5, 7, 11, 13, 17, 19, 23, and 29. Adding these together, we get:\n\n2 + 3 + 5 + 7 + 11 + 13 + 17 + 19 + 23 + 29 = 129\n\nSo, the sum of the first 10 prime numbers is 129.";
+        HttpClient client = await this.CreateTestServerAsync(AgentName, "You are a reasoning agent.", ExpectedText, (msg) =>
+        [
+            new TextReasoningContent(string.Empty), // Reasoning content is emitted but not included in the output text
+            new TextContent(ExpectedText)
+        ]);
+
+        // Act
+        HttpResponseMessage httpResponse = await this.SendRequestAsync(client, AgentName, StreamingRequestJson);
+        string sseContent = await httpResponse.Content.ReadAsStringAsync();
+        var events = ParseSseEvents(sseContent);
+
+        // Assert
+        Assert.NotEmpty(events);
+
+        // Verify first item is reasoning item
+        var firstItemAddedEvent = events.First(e => e.GetProperty("type").GetString() == "response.output_item.added");
+        var firstItem = firstItemAddedEvent.GetProperty("item");
+        Assert.Equal("reasoning", firstItem.GetProperty("type").GetString());
+        Assert.True(firstItemAddedEvent.GetProperty("output_index").GetInt32() == 0);
+
+        // Verify reasoning item done
+        var firstItemDoneEvent = events.First(e =>
+            e.GetProperty("type").GetString() == "response.output_item.done" &&
+            e.GetProperty("output_index").GetInt32() == 0);
+        var firstItemDone = firstItemDoneEvent.GetProperty("item");
+        Assert.Equal("reasoning", firstItemDone.GetProperty("type").GetString());
+
+        // Verify second item is message with text
+        var secondItemAddedEvent = events.First(e =>
+            e.GetProperty("type").GetString() == "response.output_item.added" &&
+            e.GetProperty("output_index").GetInt32() == 1);
+        var secondItem = secondItemAddedEvent.GetProperty("item");
+        Assert.Equal("message", secondItem.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task TextReasoningContent_EmitsCorrectEventSequence_SuccessAsync()
+    {
+        // Arrange
+        const string AgentName = "reasoning-sequence-agent";
+        HttpClient client = await this.CreateTestServerAsync(AgentName, "You are a reasoning agent.", "Result", (msg) =>
+        [
+            new TextReasoningContent("reasoning step"),
+            new TextContent("Result")
+        ]);
+
+        // Act
+        HttpResponseMessage httpResponse = await this.SendRequestAsync(client, AgentName, StreamingRequestJson);
+        string sseContent = await httpResponse.Content.ReadAsStringAsync();
+        var events = ParseSseEvents(sseContent);
+
+        // Assert - Verify event sequence
+        List<string?> eventTypes = events.ConvertAll(e => e.GetProperty("type").GetString());
+
+        Assert.Equal("response.created", eventTypes[0]);
+        Assert.Equal("response.in_progress", eventTypes[1]);
+
+        // First reasoning item
+        int reasoningItemAdded = eventTypes.IndexOf("response.output_item.added");
+        Assert.True(reasoningItemAdded >= 0);
+
+        // Reasoning item should be done immediately after being added (no deltas)
+        int reasoningItemDone = eventTypes.FindIndex(reasoningItemAdded, e => e == "response.output_item.done");
+        Assert.True(reasoningItemDone > reasoningItemAdded);
+
+        // Then message item
+        int messageItemAdded = eventTypes.FindIndex(reasoningItemDone, e => e == "response.output_item.added");
+        Assert.True(messageItemAdded > reasoningItemDone);
+    }
+
+    [Fact]
+    public async Task TextReasoningContent_OutputIndexIncremented_SuccessAsync()
+    {
+        // Arrange
+        const string AgentName = "reasoning-index-agent";
+        HttpClient client = await this.CreateTestServerAsync(AgentName, "You are a reasoning agent.", "Answer", (msg) =>
+        [
+            new TextReasoningContent("thinking..."),
+            new TextContent("Answer")
+        ]);
+
+        // Act
+        HttpResponseMessage httpResponse = await this.SendRequestAsync(client, AgentName, StreamingRequestJson);
+        string sseContent = await httpResponse.Content.ReadAsStringAsync();
+        var events = ParseSseEvents(sseContent);
+
+        // Assert - Verify output indices
+        var itemAddedEvents = events.Where(e => e.GetProperty("type").GetString() == "response.output_item.added").ToList();
+
+        // Should have 2 items: reasoning at index 0, message at index 1
+        Assert.Equal(2, itemAddedEvents.Count);
+        Assert.Equal(0, itemAddedEvents[0].GetProperty("output_index").GetInt32());
+        Assert.Equal(1, itemAddedEvents[1].GetProperty("output_index").GetInt32());
+
+        // First item should be reasoning
+        Assert.Equal("reasoning", itemAddedEvents[0].GetProperty("item").GetProperty("type").GetString());
+        // Second item should be message
+        Assert.Equal("message", itemAddedEvents[1].GetProperty("item").GetProperty("type").GetString());
+    }
+
+    #endregion
     // Streaming request JSON for OpenAI Responses API
     private const string StreamingRequestJson = @"{""model"":""gpt-4o-mini"",""input"":""test"",""stream"":true}";
 

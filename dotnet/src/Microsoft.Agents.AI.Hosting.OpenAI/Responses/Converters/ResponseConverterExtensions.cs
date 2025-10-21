@@ -306,6 +306,9 @@ internal static class ResponseConverterExtensions
             TextContent textContent => isInput
                 ? new ItemContentInputText { Text = textContent.Text ?? string.Empty }
                 : new ItemContentOutputText { Text = textContent.Text ?? string.Empty, Annotations = [], Logprobs = [] },
+            TextReasoningContent reasoningContent => isInput
+                ? throw new InvalidOperationException("TextReasoningContent cannot be used as input content. TextReasoningContent represents reasoning output from the model, not user input.")
+                : new ItemContentOutputText { Text = reasoningContent.Text ?? string.Empty, Annotations = [], Logprobs = [] },
             ErrorContent errorContent => isInput
                 ? throw new InvalidOperationException("ErrorContent cannot be used as input content. ErrorContent represents errors or refusals from the model, not user input.")
                 : new ItemContentRefusal { Refusal = errorContent.Message ?? string.Empty },

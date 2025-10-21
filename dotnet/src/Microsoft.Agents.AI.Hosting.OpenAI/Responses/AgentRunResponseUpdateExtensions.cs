@@ -87,10 +87,17 @@ internal static class AgentRunResponseUpdateExtensions
                         yield return evt;
                     }
 
+                    // Increment output index when switching generators
+                    if (generator is not null)
+                    {
+                        outputIndex++;
+                    }
+
                     // Create a new generator based on the content type.
                     generator = content switch
                     {
                         TextContent => new AssistantMessageEventGenerator(context.IdGenerator, seq, outputIndex),
+                        TextReasoningContent => new TextReasoningContentEventGenerator(context.IdGenerator, seq, outputIndex),
                         FunctionCallContent => new FunctionCallEventGenerator(context.IdGenerator, seq, outputIndex, context.JsonSerializerOptions),
                         FunctionResultContent => new FunctionResultEventGenerator(context.IdGenerator, seq, outputIndex),
                         ErrorContent => new ErrorContentEventGenerator(context.IdGenerator, seq, outputIndex),
