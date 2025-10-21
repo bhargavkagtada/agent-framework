@@ -77,5 +77,10 @@ namespace Microsoft.Agents.AI.Hosting.OpenAI.Responses;
 [JsonSerializable(typeof(ItemContentOutputText))]
 [JsonSerializable(typeof(ItemContentOutputAudio))]
 [JsonSerializable(typeof(ItemContentRefusal))]
+[JsonSerializable(typeof(TextConfiguration))]
+[JsonSerializable(typeof(ResponseTextFormatConfiguration))]
+[JsonSerializable(typeof(ResponseTextFormatConfigurationText))]
+[JsonSerializable(typeof(ResponseTextFormatConfigurationJsonObject))]
+[JsonSerializable(typeof(ResponseTextFormatConfigurationJsonSchema))]
 [ExcludeFromCodeCoverage]
 internal sealed partial class ResponsesJsonContext : JsonSerializerContext;

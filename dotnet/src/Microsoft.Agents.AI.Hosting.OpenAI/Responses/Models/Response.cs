@@ -192,10 +192,10 @@ internal sealed record Response
     public bool? Store { get; init; }
 
     /// <summary>
-    /// The text formatting configuration.
+    /// Configuration options for a text response from the model. Can be plain text or structured JSON data.
     /// </summary>
     [JsonPropertyName("text")]
-    public JsonElement? Text { get; init; }
+    public TextConfiguration? Text { get; init; }
 
     /// <summary>
     /// The truncation strategy used for the model response.
@@ -214,6 +214,42 @@ internal sealed record Response
     /// </summary>
     [JsonPropertyName("service_tier")]
     public string? ServiceTier { get; init; }
+
+    /// <summary>
+    /// Whether to run the model response in the background.
+    /// </summary>
+    [JsonPropertyName("background")]
+    public bool? Background { get; init; }
+
+    /// <summary>
+    /// The maximum number of total calls to built-in tools that can be processed in a response.
+    /// </summary>
+    [JsonPropertyName("max_tool_calls")]
+    public int? MaxToolCalls { get; init; }
+
+    /// <summary>
+    /// An integer between 0 and 20 specifying the number of most likely tokens to return at each token position.
+    /// </summary>
+    [JsonPropertyName("top_logprobs")]
+    public int? TopLogprobs { get; init; }
+
+    /// <summary>
+    /// A stable identifier used to help detect users of your application that may be violating OpenAI's usage policies.
+    /// </summary>
+    [JsonPropertyName("safety_identifier")]
+    public string? SafetyIdentifier { get; init; }
+
+    /// <summary>
+    /// Used by OpenAI to cache responses for similar requests to optimize your cache hit rates.
+    /// </summary>
+    [JsonPropertyName("prompt_cache_key")]
+    public string? PromptCacheKey { get; init; }
+
+    /// <summary>
+    /// Reference to a prompt template and its variables.
+    /// </summary>
+    [JsonPropertyName("prompt")]
+    public PromptReference? Prompt { get; init; }
 }
 
 /// <summary>

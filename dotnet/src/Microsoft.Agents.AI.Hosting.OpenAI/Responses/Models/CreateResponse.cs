@@ -1,5 +1,6 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -139,10 +140,39 @@ internal sealed record CreateResponse
     public string? PromptCacheKey { get; init; }
 
     /// <summary>
+    /// Reference to a prompt template and its variables.
+    /// </summary>
+    [JsonPropertyName("prompt")]
+    public PromptReference? Prompt { get; init; }
+
+    /// <summary>
+    /// Specifies the processing type used for serving the request.
+    /// If set to 'auto', the request will be processed with the service tier configured in the Project settings.
+    /// If set to 'default', the request will be processed with standard pricing and performance.
+    /// If set to 'flex' or 'priority', the request will be processed with the corresponding service tier.
+    /// </summary>
+    [JsonPropertyName("service_tier")]
+    public string? ServiceTier { get; init; }
+
+    /// <summary>
+    /// Options for streaming responses. Only set this when you set stream: true.
+    /// </summary>
+    [JsonPropertyName("stream_options")]
+    public StreamOptions? StreamOptions { get; init; }
+
+    /// <summary>
     /// The truncation strategy to use for the model response.
     /// </summary>
     [JsonPropertyName("truncation")]
     public string? Truncation { get; init; }
+
+    /// <summary>
+    /// This field is being replaced by safety_identifier and prompt_cache_key.
+    /// Use prompt_cache_key instead to maintain caching optimizations.
+    /// </summary>
+    [JsonPropertyName("user")]
+    [Obsolete("This field is deprecated. Use safety_identifier and prompt_cache_key instead.")]
+    public string? User { get; init; }
 
     /// <summary>
     /// An array of tools the model may call while generating a response.
@@ -160,5 +190,5 @@ internal sealed record CreateResponse
     /// Configuration options for a text response from the model. Can be plain text or structured JSON data.
     /// </summary>
     [JsonPropertyName("text")]
-    public JsonElement? Text { get; init; }
+    public TextConfiguration? Text { get; init; }
 }

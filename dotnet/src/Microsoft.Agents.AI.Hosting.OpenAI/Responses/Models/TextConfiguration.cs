@@ -1,7 +1,9 @@
 // Copyright (c) Microsoft. All rights reserved.
 
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Agents.AI.Hosting.OpenAI.Responses.Converters;
 
 namespace Microsoft.Agents.AI.Hosting.OpenAI.Responses.Models;
 
@@ -15,41 +17,89 @@ internal sealed record TextConfiguration
     /// Can specify plain text, JSON object, or JSON schema for structured outputs.
     /// </summary>
     [JsonPropertyName("format")]
-    public TextFormatConfiguration? Format { get; init; }
+    public ResponseTextFormatConfiguration? Format { get; init; }
+
+    /// <summary>
+    /// Constrains the verbosity of the model's response.
+    /// Lower values will result in more concise responses, while higher values will result in more verbose responses.
+    /// Supported values are "low", "medium", and "high". Defaults to "medium".
+    /// </summary>
+    [JsonPropertyName("verbosity")]
+    public string? Verbosity { get; init; }
 }
 
 /// <summary>
-/// Configuration for the format of a text response.
+/// Base class for response text format configurations.
+/// This is a discriminated union based on the "type" property.
 /// </summary>
-internal sealed record TextFormatConfiguration
+[JsonConverter(typeof(ResponseTextFormatConfigurationConverter))]
+internal abstract record ResponseTextFormatConfiguration
 {
     /// <summary>
-    /// The type of response format. One of "text", "json_object", or "json_schema".
+    /// The type of response format.
     /// </summary>
     [JsonPropertyName("type")]
-    public string? Type { get; init; }
+    public abstract string Type { get; }
+}
+
+/// <summary>
+/// Plain text response format configuration.
+/// </summary>
+internal sealed record ResponseTextFormatConfigurationText : ResponseTextFormatConfiguration
+{
+    /// <summary>
+    /// Gets the type of response format. Always "text".
+    /// </summary>
+    public override string Type => "text";
+}
+
+/// <summary>
+/// JSON object response format configuration.
+/// Ensures the message the model generates is valid JSON.
+/// </summary>
+internal sealed record ResponseTextFormatConfigurationJsonObject : ResponseTextFormatConfiguration
+{
+    /// <summary>
+    /// Gets the type of response format. Always "json_object".
+    /// </summary>
+    public override string Type => "json_object";
+}
+
+/// <summary>
+/// JSON Schema response format configuration.
+/// Used to generate structured JSON responses with a defined schema.
+/// </summary>
+internal sealed record ResponseTextFormatConfigurationJsonSchema : ResponseTextFormatConfiguration
+{
+    /// <summary>
+    /// Gets the type of response format. Always "json_schema".
+    /// </summary>
+    public override string Type => "json_schema";
 
     /// <summary>
-    /// The name of the response format (used with json_schema).
+    /// The name of the response format. Must be a-z, A-Z, 0-9, or contain
+    /// underscores and dashes, with a maximum length of 64.
     /// </summary>
     [JsonPropertyName("name")]
-    public string? Name { get; init; }
+    public required string Name { get; init; }
 
     /// <summary>
-    /// Whether to enable strict schema adherence (used with json_schema).
-    /// </summary>
-    [JsonPropertyName("strict")]
-    public bool? Strict { get; init; }
-
-    /// <summary>
-    /// The JSON schema for structured outputs (used with json_schema).
-    /// </summary>
-    [JsonPropertyName("schema")]
-    public JsonElement? Schema { get; init; }
-
-    /// <summary>
-    /// A description of what the response format is for (used with json_schema).
+    /// A description of what the response format is for, used by the model to
+    /// determine how to respond in the format.
     /// </summary>
     [JsonPropertyName("description")]
     public string? Description { get; init; }
+
+    /// <summary>
+    /// The JSON schema for structured outputs.
+    /// </summary>
+    [JsonPropertyName("schema")]
+    public required Dictionary<string, object> Schema { get; init; }
+
+    /// <summary>
+    /// Whether to enable strict schema adherence when generating the output.
+    /// If set to true, the model will always follow the exact schema defined in the schema field.
+    /// </summary>
+    [JsonPropertyName("strict")]
+    public bool? Strict { get; init; }
 }

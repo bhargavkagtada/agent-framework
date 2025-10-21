@@ -150,7 +150,7 @@ internal static class AgentRunResponseUpdateExtensions
                 Model = request.Agent?.Name ?? request.Model,
                 Status = status,
                 Agent = request.Agent?.ToAgentId(),
-                Conversation = new ConversationReference { Id = context.ConversationId },
+                Conversation = request.Conversation ?? new ConversationReference { Id = context.ConversationId },
                 Metadata = request.Metadata != null ? new Dictionary<string, string>(request.Metadata) : [],
                 Instructions = request.Instructions,
                 Temperature = request.Temperature ?? 1.0,
@@ -160,8 +160,22 @@ internal static class AgentRunResponseUpdateExtensions
                 ParallelToolCalls = request.ParallelToolCalls ?? true,
                 Tools = request.Tools?.Select(ResponseConverterExtensions.ProcessTool).ToList() ?? [],
                 ToolChoice = request.ToolChoice,
-                ServiceTier = "default",
-                Store = request.Store ?? true
+                ServiceTier = request.ServiceTier ?? "default",
+                Store = request.Store ?? true,
+                PreviousResponseId = request.PreviousResponseId,
+                Reasoning = request.Reasoning,
+                Text = request.Text,
+                MaxOutputTokens = request.MaxOutputTokens,
+                Truncation = request.Truncation,
+#pragma warning disable CS0618 // Type or member is obsolete
+                User = request.User,
+                PromptCacheKey = request.PromptCacheKey,
+#pragma warning restore CS0618 // Type or member is obsolete
+                SafetyIdentifier = request.SafetyIdentifier,
+                TopLogprobs = request.TopLogprobs,
+                MaxToolCalls = request.MaxToolCalls,
+                Background = request.Background,
+                Prompt = request.Prompt
             };
         }
     }

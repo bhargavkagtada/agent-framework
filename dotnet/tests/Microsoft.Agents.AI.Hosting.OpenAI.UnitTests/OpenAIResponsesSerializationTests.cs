@@ -258,8 +258,12 @@ public sealed class OpenAIResponsesSerializationTests : ConformanceTestBase
         Assert.NotNull(request);
         Assert.NotNull(request.Input);
         Assert.NotNull(request.Text);
-        Assert.True(request.Text.Value.TryGetProperty("format", out var format));
-        Assert.Equal("json_schema", format.GetProperty("type").GetString());
+        Assert.NotNull(request.Text.Format);
+        Assert.IsType<ResponseTextFormatConfigurationJsonSchema>(request.Text.Format);
+        var jsonSchemaFormat = (ResponseTextFormatConfigurationJsonSchema)request.Text.Format;
+        Assert.Equal("json_schema", jsonSchemaFormat.Type);
+        Assert.NotNull(jsonSchemaFormat.Name);
+        Assert.NotNull(jsonSchemaFormat.Schema);
     }
 
     [Fact]
@@ -276,8 +280,10 @@ public sealed class OpenAIResponsesSerializationTests : ConformanceTestBase
         Assert.True(request.Stream);
         Assert.NotNull(request.Input);
         Assert.NotNull(request.Text);
-        Assert.True(request.Text.Value.TryGetProperty("format", out var format));
-        Assert.Equal("json_schema", format.GetProperty("type").GetString());
+        Assert.NotNull(request.Text.Format);
+        Assert.IsType<ResponseTextFormatConfigurationJsonSchema>(request.Text.Format);
+        var jsonSchemaFormat = (ResponseTextFormatConfigurationJsonSchema)request.Text.Format;
+        Assert.Equal("json_schema", jsonSchemaFormat.Type);
     }
 
     [Fact]
@@ -592,8 +598,10 @@ public sealed class OpenAIResponsesSerializationTests : ConformanceTestBase
         Assert.Equal(ResponseStatus.Completed, response.Status);
         Assert.NotNull(response.Output);
         Assert.NotNull(response.Text);
-        Assert.True(response.Text.Value.TryGetProperty("format", out var format));
-        Assert.Equal("json_schema", format.GetProperty("type").GetString());
+        Assert.NotNull(response.Text.Format);
+        Assert.IsType<ResponseTextFormatConfigurationJsonSchema>(response.Text.Format);
+        var jsonSchemaFormat = (ResponseTextFormatConfigurationJsonSchema)response.Text.Format;
+        Assert.Equal("json_schema", jsonSchemaFormat.Type);
     }
 
     [Fact]

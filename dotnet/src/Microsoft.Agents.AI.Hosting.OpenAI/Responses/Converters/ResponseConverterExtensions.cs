@@ -48,12 +48,22 @@ internal static class ResponseConverterExtensions
             ParallelToolCalls = request.ParallelToolCalls ?? true,
             Tools = request.Tools?.Select(ProcessTool).ToList() ?? [],
             ToolChoice = request.ToolChoice,
-            ServiceTier = "default",
+            ServiceTier = request.ServiceTier ?? "default",
             Store = request.Store ?? true,
             PreviousResponseId = request.PreviousResponseId,
             Reasoning = request.Reasoning,
             Text = request.Text,
-            MaxOutputTokens = request.MaxOutputTokens
+            MaxOutputTokens = request.MaxOutputTokens,
+            Truncation = request.Truncation,
+#pragma warning disable CS0618 // Type or member is obsolete
+            User = request.User,
+            PromptCacheKey = request.PromptCacheKey,
+#pragma warning restore CS0618 // Type or member is obsolete
+            SafetyIdentifier = request.SafetyIdentifier,
+            TopLogprobs = request.TopLogprobs,
+            MaxToolCalls = request.MaxToolCalls,
+            Background = request.Background,
+            Prompt = request.Prompt
         };
     }
 
