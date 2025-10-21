@@ -3,6 +3,7 @@
 using System;
 using System.Linq;
 using System.Text.Json.Serialization;
+using Microsoft.Agents.AI.Hosting.OpenAI.Responses.Converters;
 using Microsoft.Extensions.AI;
 
 namespace Microsoft.Agents.AI.Hosting.OpenAI.Responses.Models;
@@ -61,7 +62,7 @@ internal sealed record InputMessage
             Role = message.Role,
             Content = !string.IsNullOrEmpty(message.Text)
                 ? InputMessageContent.FromText(message.Text)
-                : InputMessageContent.FromContents(message.Contents.Select(ConvertToItemContent).Where(c => c is not null).ToArray()!)
+                : InputMessageContent.FromContents(message.Contents.Select(c => c.ToInputItemContent()).Where(c => c is not null).ToArray()!)
         };
     }
 
@@ -127,96 +128,5 @@ internal sealed record InputMessage
         }
 
         return aiContent;
-    }
-
-    private static ItemContent? ConvertToItemContent(AIContent aiContent)
-    {
-        // Check if we already have the raw representation to avoid unnecessary conversion
-        if (aiContent.RawRepresentation is ItemContent itemContent)
-        {
-            return itemContent;
-        }
-
-        ItemContent? result = aiContent switch
-        {
-            // Text content
-            TextContent textContent => new ItemContentInputText { Text = textContent.Text ?? string.Empty },
-
-            // Error content
-            ErrorContent errorContent => new ItemContentRefusal { Refusal = errorContent.Message ?? string.Empty },
-
-            // Image content - UriContent or DataContent with image/* media type
-            UriContent uriContent when uriContent.HasTopLevelMediaType("image") =>
-                new ItemContentInputImage
-                {
-                    ImageUrl = uriContent.Uri?.ToString(),
-                    Detail = GetImageDetail(uriContent)
-                },
-            DataContent dataContent when dataContent.HasTopLevelMediaType("image") =>
-                new ItemContentInputImage
-                {
-                    ImageUrl = dataContent.Uri,
-                    Detail = GetImageDetail(dataContent)
-                },
-
-            // File content - HostedFileContent maps to file_id
-            HostedFileContent hostedFile =>
-                new ItemContentInputFile
-                {
-                    FileId = hostedFile.FileId
-                },
-
-            // File content - DataContent for file data (preserve filename if available)
-            DataContent fileData when !fileData.HasTopLevelMediaType("image") && !fileData.HasTopLevelMediaType("audio") =>
-                new ItemContentInputFile
-                {
-                    FileData = fileData.Uri,
-                    Filename = fileData.Name
-                },
-
-            // Audio content - DataContent with audio/* media type
-            DataContent audioData when audioData.HasTopLevelMediaType("audio") =>
-                new ItemContentInputAudio
-                {
-                    Data = audioData.Uri,
-                    Format = audioData.MediaType.Equals("audio/mpeg", StringComparison.OrdinalIgnoreCase) ? "mp3" :
-                        audioData.MediaType.Equals("audio/wav", StringComparison.OrdinalIgnoreCase) ? "wav" :
-                        audioData.MediaType.Equals("audio/opus", StringComparison.OrdinalIgnoreCase) ? "opus" :
-                        audioData.MediaType.Equals("audio/aac", StringComparison.OrdinalIgnoreCase) ? "aac" :
-                        audioData.MediaType.Equals("audio/flac", StringComparison.OrdinalIgnoreCase) ? "flac" :
-                        audioData.MediaType.Equals("audio/pcm", StringComparison.OrdinalIgnoreCase) ? "pcm16" :
-                        "mp3" // Default to mp3
-                },
-
-            // Other AIContent types (FunctionCallContent, FunctionResultContent, etc.)
-            // are handled separately in the Responses API as different ItemResource types, not ItemContent
-            _ => null
-        };
-
-        if (result is not null)
-        {
-            result.RawRepresentation = aiContent;
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// Extracts the image detail level from AIContent's additional properties.
-    /// </summary>
-    /// <param name="content">The AIContent to extract detail from.</param>
-    /// <returns>The detail level as a string, or null if not present.</returns>
-    private static string? GetImageDetail(AIContent content)
-    {
-        if (content.AdditionalProperties?.TryGetValue("detail", out object? value) is true)
-        {
-            return value switch
-            {
-                string detailString => detailString,
-                _ => value?.ToString()
-            };
-        }
-
-        return null;
     }
 }

@@ -135,7 +135,7 @@ internal static class AgentRunResponseUpdateExtensions
             {
                 Id = context.ResponseId,
                 CreatedAt = createdAt.ToUnixTimeSeconds(),
-                Model = createResponse.Agent?.Name ?? createResponse.Model ?? "unknown",
+                Model = createResponse.Agent?.Name ?? createResponse.Model,
                 Status = status,
                 Agent = createResponse.Agent?.ToAgentId(),
                 Conversation = new ConversationReference { Id = context.ConversationId },

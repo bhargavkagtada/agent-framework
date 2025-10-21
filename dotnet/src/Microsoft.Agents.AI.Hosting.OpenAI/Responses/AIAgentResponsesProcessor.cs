@@ -38,22 +38,9 @@ internal static class AIAgentResponsesProcessor
             return new StreamingResponse(agent, request, context);
         }
 
-        try
-        {
-            var messages = request.Input.GetInputMessages().Select(i => i.ToChatMessage());
-            var response = await agent.RunAsync(messages, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return Results.Ok(response.ToResponse(request, context));
-        }
-        catch (Exception e)
-        {
-            Activity.Current?.AddException(e);
-            if (e is AgentInvocationException)
-            {
-                throw;
-            }
-
-            throw new AgentInvocationException(new ResponseError { Code = "server_error", Message = e.Message });
-        }
+        var messages = request.Input.GetInputMessages().Select(i => i.ToChatMessage());
+        var response = await agent.RunAsync(messages, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return Results.Ok(response.ToResponse(request, context));
     }
 
     private sealed class StreamingResponse(AIAgent agent, CreateResponse createResponse, AgentInvocationContext context) : IResult

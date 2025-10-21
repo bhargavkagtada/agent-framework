@@ -73,7 +73,7 @@ internal sealed record Response
     /// The model used to generate the response.
     /// </summary>
     [JsonPropertyName("model")]
-    public required string Model { get; init; }
+    public string? Model { get; init; }
 
     /// <summary>
     /// The status of the response generation.

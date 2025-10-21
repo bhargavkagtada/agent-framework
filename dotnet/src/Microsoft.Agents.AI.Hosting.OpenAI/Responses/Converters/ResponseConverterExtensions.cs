@@ -35,7 +35,7 @@ internal static class ResponseConverterExtensions
         {
             Id = context.ResponseId,
             CreatedAt = (agentRunResponse.CreatedAt ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds(),
-            Model = request.Agent?.Name ?? request.Model ?? "unknown",
+            Model = request.Agent?.Name ?? request.Model,
             Status = ResponseStatus.Completed,
             Agent = request.Agent?.ToAgentId(),
             Conversation = request.Conversation ?? (context.ConversationId != null ? new ConversationReference { Id = context.ConversationId } : null),
@@ -178,7 +178,7 @@ internal static class ResponseConverterExtensions
                     break;
                 default:
                     // message.Role == ChatRole.Assistant
-                    var itemContent = content.ToItemContent();
+                    var itemContent = content.ToOutputItemContent();
                     if (itemContent != null)
                     {
                         contents.Add(itemContent);
@@ -274,28 +274,102 @@ internal static class ResponseConverterExtensions
     }
 
     /// <summary>
-    /// Converts AIContent to ItemContent.
+    /// Converts AIContent to ItemContent for input messages.
     /// </summary>
     /// <param name="content">The AI content to convert.</param>
     /// <returns>An ItemContent object, or null if the content cannot be converted.</returns>
-    public static ItemContent? ToItemContent(this AIContent content)
+    public static ItemContent? ToInputItemContent(this AIContent content)
     {
-        switch (content)
+        return content.ToItemContentCore(isInput: true);
+    }
+
+    /// <summary>
+    /// Converts AIContent to ItemContent for output messages.
+    /// </summary>
+    /// <param name="content">The AI content to convert.</param>
+    /// <returns>An ItemContent object, or null if the content cannot be converted.</returns>
+    public static ItemContent? ToOutputItemContent(this AIContent content)
+    {
+        return content.ToItemContentCore(isInput: false);
+    }
+
+    private static ItemContent? ToItemContentCore(this AIContent content, bool isInput)
+    {
+        // Check if we already have the raw representation to avoid unnecessary conversion
+        if (content.RawRepresentation is ItemContent itemContent)
         {
-            case TextContent textContent:
-                return new ItemContentOutputText { Text = textContent?.Text ?? string.Empty, Annotations = [], Logprobs = [] };
-            case ErrorContent errorContent:
-                var message = $"Error = \"{errorContent.Message}\"" +
-                              (!string.IsNullOrWhiteSpace(errorContent.ErrorCode)
-                                  ? $" ({errorContent.ErrorCode})"
-                                  : string.Empty) +
-                              (!string.IsNullOrWhiteSpace(errorContent.Details)
-                                  ? $" - \"{errorContent.Details}\""
-                                  : string.Empty);
-                var error = new ResponseError { Code = errorContent.ErrorCode ?? "error", Message = message };
-                throw new AgentInvocationException(error);
-            default:
-                return null;
+            return itemContent;
         }
+
+        ItemContent? result = content switch
+        {
+            TextContent textContent => isInput
+                ? new ItemContentInputText { Text = textContent.Text ?? string.Empty }
+                : new ItemContentOutputText { Text = textContent.Text ?? string.Empty, Annotations = [], Logprobs = [] },
+            ErrorContent errorContent => isInput
+                ? throw new InvalidOperationException("ErrorContent cannot be used as input content. ErrorContent represents errors or refusals from the model, not user input.")
+                : new ItemContentRefusal { Refusal = errorContent.Message ?? string.Empty },
+            UriContent uriContent when uriContent.HasTopLevelMediaType("image") =>
+                new ItemContentInputImage
+                {
+                    ImageUrl = uriContent.Uri?.ToString(),
+                    Detail = GetImageDetail(uriContent)
+                },
+            DataContent dataContent when dataContent.HasTopLevelMediaType("image") =>
+                new ItemContentInputImage
+                {
+                    ImageUrl = dataContent.Uri,
+                    Detail = GetImageDetail(dataContent)
+                },
+            HostedFileContent hostedFile =>
+                new ItemContentInputFile
+                {
+                    FileId = hostedFile.FileId
+                },
+            DataContent fileData when !fileData.HasTopLevelMediaType("image") && !fileData.HasTopLevelMediaType("audio") =>
+                new ItemContentInputFile
+                {
+                    FileData = fileData.Uri,
+                    Filename = fileData.Name
+                },
+            DataContent audioData when audioData.HasTopLevelMediaType("audio") =>
+                new ItemContentInputAudio
+                {
+                    Data = audioData.Uri,
+                    Format = audioData.MediaType.Equals("audio/mpeg", StringComparison.OrdinalIgnoreCase) ? "mp3" :
+                        audioData.MediaType.Equals("audio/wav", StringComparison.OrdinalIgnoreCase) ? "wav" :
+                        audioData.MediaType.Equals("audio/opus", StringComparison.OrdinalIgnoreCase) ? "opus" :
+                        audioData.MediaType.Equals("audio/aac", StringComparison.OrdinalIgnoreCase) ? "aac" :
+                        audioData.MediaType.Equals("audio/flac", StringComparison.OrdinalIgnoreCase) ? "flac" :
+                        audioData.MediaType.Equals("audio/pcm", StringComparison.OrdinalIgnoreCase) ? "pcm16" :
+                        "mp3" // Default to mp3
+                },
+
+            // Other AIContent types (FunctionCallContent, FunctionResultContent, etc.)
+            // are handled separately in the Responses API as different ItemResource types, not ItemContent
+            _ => null
+        };
+
+        if (result is not null)
+        {
+            result.RawRepresentation = content;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Extracts the image detail level from AIContent's additional properties.
+    /// </summary>
+    /// <param name="content">The AIContent to extract detail from.</param>
+    /// <returns>The detail level as a string, or null if not present.</returns>
+    private static string? GetImageDetail(AIContent content)
+    {
+        if (content.AdditionalProperties?.TryGetValue("detail", out object? value) is true)
+        {
+            return value?.ToString();
+        }
+
+        return null;
     }
 }
