@@ -175,7 +175,8 @@ internal static class AgentRunResponseUpdateExtensions
                 TopLogprobs = request.TopLogprobs,
                 MaxToolCalls = request.MaxToolCalls,
                 Background = request.Background,
-                Prompt = request.Prompt
+                Prompt = request.Prompt,
+                Error = null
             };
         }
     }

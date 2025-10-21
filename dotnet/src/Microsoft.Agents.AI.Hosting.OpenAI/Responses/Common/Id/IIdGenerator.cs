@@ -40,4 +40,11 @@ internal static class IdGeneratorExtensions
     /// <param name="idGenerator">The ID generator.</param>
     /// <returns>A message ID.</returns>
     public static string GenerateMessageId(this IIdGenerator idGenerator) => idGenerator.Generate("msg");
+
+    /// <summary>
+    /// Generates a reasoning ID.
+    /// </summary>
+    /// <param name="idGenerator">The ID generator.</param>
+    /// <returns>A reasoning ID.</returns>
+    public static string GenerateReasoningId(this IIdGenerator idGenerator) => idGenerator.Generate("rs");
 }

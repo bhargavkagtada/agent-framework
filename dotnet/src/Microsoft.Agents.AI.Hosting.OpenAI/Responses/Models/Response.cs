@@ -98,6 +98,7 @@ internal sealed record Response
     /// An error object returned when the model fails to generate a response.
     /// </summary>
     [JsonPropertyName("error")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public ResponseError? Error { get; init; }
 
     /// <summary>
